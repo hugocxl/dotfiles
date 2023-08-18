@@ -17,9 +17,9 @@ ZSH_THEME="refined"
 ENABLE_CORRECTION="true"
 COMPLETION_WAITING_DOTS="true"
 HIST_STAMPS="dd.mm.yyyy"
+
+# Plugins
 plugins=(git)
-source $ZSH/oh-my-zsh.sh
-zstyle ':omz:update' mode auto # update automatically without asking
 
 # Aliases
 alias zshconfig="open ~/.zshrc"
@@ -38,3 +38,6 @@ alias gcp="git cp"
 alias gs="git save"
 alias gr="git reset"
 alias gcl="git cl"
+
+# Setup
+source $ZSH/oh-my-zsh.sh
