@@ -22,8 +22,8 @@ source $ZSH/oh-my-zsh.sh
 zstyle ':omz:update' mode auto # update automatically without asking
 
 # Aliases
-alias zshconfig="mate ~/.zshrc"
-alias ohmyzsh="mate ~/.oh-my-zsh"
+alias zshconfig="open ~/.zshrc"
+alias ohmyzsh="open ~/.oh-my-zsh"
 alias px="pnpm"
 alias ga="git a"
 alias gf="git f"
