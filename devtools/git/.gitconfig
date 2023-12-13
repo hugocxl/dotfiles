@@ -1,0 +1,41 @@
+[core]
+excludesfile = /Users/hugocxl/.gitignore
+ignorecase = false
+
+[user]
+name = hugocxl
+email = corta.hugo@gmail.com
+
+[help]
+# Automatically correct and execute mistyped commands.
+autocorrect = 1
+
+[merge]
+# Include summaries of merged commits in newly created merge commit messages
+log = true
+
+[push]
+default = simple
+# Make `git push` push relevant annotated tags when pushing branches out.
+followTags = true
+# Automatically set remote
+autoSetupRemote = true
+
+[pull]
+rebase = false
+
+[alias]
+a = add
+f = fetch
+ls = log --oneline
+st = status -sb
+cm = commit -m
+c = commit
+cl = clone
+ps = push
+pl = pull
+co = checkout
+cob = checkout -b
+cp = cherry-pick
+save = !git add -A && git commit -m
+reset = !git reset --hard

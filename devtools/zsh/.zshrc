@@ -24,7 +24,6 @@ plugins=(git)
 # Aliases
 alias zshconfig="open ~/.zshrc"
 alias ohmyzsh="open ~/.oh-my-zsh"
-alias px="pnpm"
 alias ga="git a"
 alias gf="git f"
 alias gls="git ls"
@@ -38,9 +37,11 @@ alias gcp="git cp"
 alias gs="git save"
 alias gr="git reset"
 alias gcl="git cl"
+alias px="pnpm"
 alias pxi="px i"
 alias pxb="px build"
 alias pxd="px dev"
+alias pxs="px start"
 alias pxt="px test"
 
 # Setup
