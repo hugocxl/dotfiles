@@ -12,7 +12,7 @@ osascript -e 'tell application "System Preferences" to quit'
 sudo nvram SystemAudioVolume=" "
 
 # Set sidebar icon size to medium
-defaults write NSGlobalDomain NSTableViewDefaultSizeMode -int 3
+defaults write NSGlobalDomain NSTableViewDefaultSizeMode -int 1
 
 # Automatic show scrollbars
 defaults write NSGlobalDomain AppleShowScrollBars -string "Automatic"

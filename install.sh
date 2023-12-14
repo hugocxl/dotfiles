@@ -18,27 +18,47 @@ print_subtitle() {
     echo "\033[1;34m${title_text}\033[0m"
 }
 
+brew_install() {
+    # Check if a Cask program ID is provided as an argument
+    if [ "$#" -ne 1 ]; then
+        echo "Usage: $0 <cask_program_id>"
+        return 1
+    fi
+
+    cask_program_id=$1
+
+    print_subtitle "Installing ${cask_program_id}"
+    # Check if the application is already installed in the Applications folder
+    if [ -d "/Applications/$cask_program_id.app" ]; then
+        echo "\033[1;34m # ${cask_program_id}\033[0m: already installed"
+    else
+        print_subtitle "Installing ${cask_program_id}"
+
+        brew install $cask_program_id
+    fi
+}
+
 # Ask for the administrator password upfront
 sudo -v
 
 function install() {
     # Run the osx.sh script
     print_title "Updating OSX and installing Xcode command line tools"
-    source ./macos/osx.sh
+    source ./macos/install.sh
 
     # # Run the macos.sh script
     print_title "Setting sensible OSX defaults"
-    source ./macos/macos.sh
+    source ./macos/defaults.sh
 
     # # Run the brew.sh script
     print_title "Installing Homebrew along with some common formulae and apps"
     echo "This might awhile to complete, as some formulae need to be installed from source."
     echo ""
-    source ./brew/brew.sh
+    source ./homebrew/install.sh
 
     # Copy config files
     print_title "Installing devtools apps and configuration"
-    source ./devtools/devtools.sh
+    source ./devtools/install.sh
 
     print_title "Complete!"
     echo "Restart your computer to ensure all updates take effect"

@@ -14,15 +14,15 @@ brew update
 brew upgrade --greedy
 
 # Applications
-brew install 1password
-brew install airflow
-brew install arc
-brew install figma
-brew install google-drive
-brew install notion
-brew install raycast
-brew install spotify
-brew install vlc
+brew_install 1password
+brew_install airflow
+brew_install arc
+brew_install figma
+brew_install google-drive
+brew_install notion
+brew_install raycast
+brew_install spotify
+brew_install vlc
 
 # Remove outdated versions from the cellar.
 brew cleanup

@@ -13,23 +13,23 @@ brew install rustup
 # Applications
 print_subtitle "Installing applications for development"
 
-brew install docker
-brew install figma
-brew install gitkraken
-brew install minisim
-brew install postman
-brew install table-plus
-brew install visual-studio-code
+brew_install docker
+brew_install figma
+brew_install gitkraken
+brew_install minisim
+brew_install postman
+brew_install table-plus
+brew_install visual-studio-code
 
 # Git
 print_subtitle "Configuring git"
 
-source devtools/git/git.sh
+source devtools/git/install.sh
 
 # Zsh
 print_subtitle "Configuring zsh"
 
-source devtools/zsh/zsh.sh
+source devtools/zsh/install.sh
 
 # Remove outdated versions from the cellar.
 brew cleanup
