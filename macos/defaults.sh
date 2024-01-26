@@ -93,9 +93,6 @@ defaults write NSGlobalDomain AppleMetricUnits -bool true
 # Set the timezone; see `sudo systemsetup -listtimezones` for other values
 # sudo systemsetup -settimezone "Europe/Madrid" >/dev/null
 
-# Stop iTunes from responding to the keyboard media keys
-launchctl unload -w /System/Library/LaunchAgents/com.apple.rcd.plist 2>/dev/null
-
 ###############################################################################
 # Energy saving                                                               #
 ###############################################################################
@@ -152,9 +149,6 @@ sudo defaults write /Library/Preferences/com.apple.windowserver DisplayResolutio
 ###############################################################################
 # Finder                                                                      #
 ###############################################################################
-
-# Finder: allow quitting via ⌘ + Q; doing so will also hide desktop icons
-defaults write com.apple.finder QuitMenuItem -bool true
 
 # Finder: disable window animations and Get Info animations
 defaults write com.apple.finder DisableAllAnimations -bool true
