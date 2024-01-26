@@ -19,10 +19,13 @@ brew_install airflow
 brew_install arc
 brew_install figma
 brew_install google-drive
+brew_install meetingbar
 brew_install notion
 brew_install raycast
 brew_install spotify
+brew_install visual-studio-code
 brew_install vlc
+brew_install cocoapods
 
 # Remove outdated versions from the cellar.
 brew cleanup
