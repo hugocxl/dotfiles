@@ -1,0 +1,91 @@
+# Linked to ~/.config/git/config. Name, email and anything machine-specific
+# live in ~/.config/git/config.local, which install.sh creates.
+
+[include]
+path = ~/.config/git/config.local
+
+[core]
+ignorecase = false
+pager = delta
+# The global ignore file is picked up automatically from ~/.config/git/ignore.
+
+[init]
+defaultBranch = main
+
+[help]
+# Suggest the closest command and ask before running it.
+autocorrect = prompt
+
+[column]
+ui = auto
+
+[branch]
+sort = -committerdate
+
+[tag]
+sort = version:refname
+
+[commit]
+# Show the diff in the editor while writing the message.
+verbose = true
+
+[diff]
+algorithm = histogram
+colorMoved = plain
+mnemonicPrefix = true
+renames = true
+
+[merge]
+# Include summaries of merged commits in newly created merge commit messages
+log = true
+conflictstyle = zdiff3
+
+[rerere]
+# Remember how conflicts were resolved and replay it next time.
+enabled = true
+autoupdate = true
+
+[fetch]
+prune = true
+pruneTags = true
+
+[push]
+default = simple
+# Make `git push` push relevant annotated tags when pushing branches out.
+followTags = true
+# Automatically set remote
+autoSetupRemote = true
+
+[pull]
+rebase = false
+
+[rebase]
+autoSquash = true
+autoStash = true
+updateRefs = true
+
+[interactive]
+diffFilter = delta --color-only
+
+[delta]
+navigate = true
+line-numbers = true
+
+[alias]
+a = add
+f = fetch
+ls = log --oneline
+lg = log --graph --pretty=format:'%C(yellow)%h%C(reset) %s %C(dim)(%cr) %an%C(auto)%d%C(reset)'
+st = status -sb
+cm = commit -m
+c = commit
+cl = clone
+ps = push
+pl = pull
+co = checkout
+cob = checkout -b
+sw = switch
+cp = cherry-pick
+save = !git add -A && git commit -m
+undo = reset --soft HEAD~1
+nuke = reset --hard

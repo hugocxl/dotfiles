@@ -1,0 +1,11 @@
+# Global tool versions, managed by mise (https://mise.jdx.dev).
+# Per-project versions go in a mise.toml / .nvmrc / .node-version in the repo.
+
+[tools]
+node = "lts"
+pnpm = "latest"
+bun = "latest"
+
+[settings]
+# Honour .nvmrc and .node-version files, like nvm did.
+idiomatic_version_file_enable_tools = ["node"]

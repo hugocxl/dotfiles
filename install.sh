@@ -1,76 +1,218 @@
 #!/usr/bin/env bash
+# Set up a new Mac, or re-apply everything to an existing one. Every step is
+# idempotent, so it's safe to run again after pulling changes.
+#
+#   ./install.sh               run every step
+#   ./install.sh git vscode    run only some steps
+#   ./install.sh --yes         accept every default, no questions
+#   ./install.sh --list        list the steps
 
-columns=$(tput cols)
-divider1=$(printf '#%.0s' $(seq 1 $columns))
-divider2=$(printf '_%.0s' $(seq 1 $columns))
+set -euo pipefail
+cd "$(dirname "$0")"
+source lib/utils.sh
 
-print_title() {
-    local title_text="$1"
-    local terminal_width=$(tput cols)
-    local title_length=$((terminal_width - ${#title_text} - 3))
-    echo ""
-    echo "\033[1;104m ${title_text} $(printf ' %.0s' $(seq 1 "$title_length"))\033[0m"
+STEPS="xcode homebrew packages dotfiles git ssh languages vscode macos"
+
+describe() {
+  case $1 in
+    xcode)     echo "Xcode Command Line Tools" ;;
+    homebrew)  echo "Homebrew" ;;
+    packages)  echo "CLI tools and apps from the Brewfile" ;;
+    dotfiles)  echo "Link zsh and mise config into ~" ;;
+    git)       echo "Git config, identity and GitHub login" ;;
+    ssh)       echo "SSH key in the macOS keychain" ;;
+    languages) echo "Node, pnpm, bun (mise) and Rust" ;;
+    vscode)    echo "VS Code settings, keybindings and extensions" ;;
+    macos)     echo "macOS defaults, security and software updates" ;;
+  esac
 }
 
-print_subtitle() {
-    local title_text="$1"
-    echo ""
-    echo "\033[1;34m${title_text}\033[0m"
+# --- Steps -------------------------------------------------------------------
+
+step_xcode() {
+  if xcode-select -p &>/dev/null; then
+    ok "Already installed"
+    return
+  fi
+  # Install headlessly through softwareupdate instead of the GUI prompt
+  local flag=/tmp/.com.apple.dt.CommandLineTools.installondemand.in-progress label
+  touch "$flag"
+  label=$(softwareupdate -l 2>/dev/null | sed -n 's/^.*Label: \(Command Line Tools.*\)$/\1/p' | sort -V | tail -1)
+  rm -f "$flag"
+  if [[ -n $label ]]; then
+    sudo softwareupdate -i "$label"
+  else
+    xcode-select --install
+    read -r -p "  Press Enter once the installer has finished. "
+  fi
+  xcode-select -p &>/dev/null || die "Command Line Tools are still missing"
+  ok "Installed"
 }
 
-brew_install() {
-    # Check if a Cask program ID is provided as an argument
-    if [ "$#" -ne 1 ]; then
-        echo "Usage: $0 <cask_program_id>"
-        return 1
+step_homebrew() {
+  if ! [[ -x $(brew_prefix)/bin/brew ]]; then
+    NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  fi
+  eval "$("$(brew_prefix)/bin/brew" shellenv)"
+  brew analytics off
+  brew update --quiet
+  ok "Homebrew $(brew --version | head -1 | cut -d' ' -f2)"
+}
+
+step_packages() {
+  # --adopt takes over apps that were installed by hand instead of failing
+  if HOMEBREW_CASK_OPTS="--adopt" brew bundle --file=Brewfile; then
+    ok "Everything in the Brewfile is installed"
+  else
+    warn "Some packages failed. Fix them, then run: ./install.sh packages"
+  fi
+}
+
+step_dotfiles() {
+  link zsh/.zshrc "$HOME/.zshrc"
+  link zsh/.zprofile "$HOME/.zprofile"
+  link mise/config.toml "$HOME/.config/mise/config.toml"
+
+  [[ $SHELL == */zsh ]] || chsh -s /bin/zsh
+  if [[ -d $HOME/.oh-my-zsh ]]; then
+    info "Oh My Zsh is no longer used; remove it with: rm -rf ~/.oh-my-zsh"
+  fi
+}
+
+step_git() {
+  link git/config "$HOME/.config/git/config"
+  link git/ignore "$HOME/.config/git/ignore"
+
+  # A ~/.gitconfig would override the XDG config, so carry over the identity
+  # from it and move it out of the way.
+  local old_name old_email
+  if [[ -f $HOME/.gitconfig ]]; then
+    old_name=$(git config --file "$HOME/.gitconfig" user.name || true)
+    old_email=$(git config --file "$HOME/.gitconfig" user.email || true)
+    backup "$HOME/.gitconfig"
+  fi
+
+  local local_config="$HOME/.config/git/config.local"
+  if [[ -z $(git config --file "$local_config" user.email 2>/dev/null || true) ]]; then
+    local name email
+    name=$(prompt "Git name" "${old_name:-$(id -F)}")
+    email=$(prompt "Git email" "${old_email:-}")
+    git config --file "$local_config" user.name "$name"
+    git config --file "$local_config" user.email "$email"
+  fi
+  ok "Committing as $(git config user.name) <$(git config user.email)>"
+
+  if has gh && ! gh auth status &>/dev/null && ask "Log in to GitHub now?"; then
+    gh auth login --git-protocol ssh --web
+  fi
+}
+
+step_ssh() {
+  local key="$HOME/.ssh/id_ed25519"
+  mkdir -p "$HOME/.ssh" && chmod 700 "$HOME/.ssh"
+
+  if [[ ! -f $key ]] && ask "Create an SSH key?"; then
+    ssh-keygen -t ed25519 -C "$(git config user.email || whoami)" -f "$key"
+  fi
+  [[ -f $key ]] || return 0
+
+  # Load keys from the macOS keychain so the passphrase is asked only once
+  if ! grep -q "UseKeychain" "$HOME/.ssh/config" 2>/dev/null; then
+    printf '\nHost *\n  AddKeysToAgent yes\n  UseKeychain yes\n  IdentityFile %s\n' "$key" >>"$HOME/.ssh/config"
+    chmod 600 "$HOME/.ssh/config"
+  fi
+  ssh-add --apple-use-keychain "$key" 2>/dev/null || true
+  ok "SSH key: $key.pub"
+
+  if has gh && gh auth status &>/dev/null && ! gh ssh-key list 2>/dev/null | grep -q "$(cut -d' ' -f2 "$key.pub")"; then
+    if ask "Add this key to your GitHub account?"; then
+      gh ssh-key add "$key.pub" --title "$(scutil --get ComputerName)"
     fi
-
-    cask_program_id=$1
-
-    print_subtitle "Installing ${cask_program_id}"
-    # Check if the application is already installed in the Applications folder
-    if [ -d "/Applications/$cask_program_id.app" ]; then
-        echo "\033[1;34m # ${cask_program_id}\033[0m: already installed"
-    else
-        print_subtitle "Installing ${cask_program_id}"
-
-        brew install $cask_program_id
-    fi
+  fi
 }
 
-# Ask for the administrator password upfront
-sudo -v
-
-function install() {
-    # Run the osx.sh script
-    print_title "Updating OSX and installing Xcode command line tools"
-    source ./macos/install.sh
-
-    # # Run the macos.sh script
-    print_title "Setting sensible OSX defaults"
-    source ./macos/defaults.sh
-
-    # # Run the brew.sh script
-    print_title "Installing Homebrew along with some common formulae and apps"
-    echo "This might awhile to complete, as some formulae need to be installed from source."
-    echo ""
-    source ./homebrew/install.sh
-
-    # Copy config files
-    print_title "Installing devtools apps and configuration"
-    source ./devtools/install.sh
-
-    print_title "Complete!"
-    echo "Restart your computer to ensure all updates take effect"
+step_languages() {
+  if has mise; then
+    mise install --yes
+    ok "$(mise ls --current | wc -l | tr -d " ") tools from mise/config.toml"
+  fi
+  if has rustup || [[ -x $(brew_prefix)/opt/rustup/bin/rustup ]]; then
+    PATH="$(brew_prefix)/opt/rustup/bin:$PATH" rustup default stable >/dev/null
+    ok "Rust stable"
+  fi
 }
 
-if [ "$1" == "--force" -o "$1" == "-f" ]; then
-    install
-else
-    read -p "This may overwrite existing files in your home directory. Are you sure? (y/n) " -n 1
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        install
+step_vscode() {
+  local user_dir="$HOME/Library/Application Support/Code/User"
+  link vscode/settings.json "$user_dir/settings.json"
+  link vscode/keybindings.json "$user_dir/keybindings.json"
+
+  if ! has code; then
+    warn "The 'code' command is missing; skipping extensions"
+    return
+  fi
+  local installed ext
+  installed=$(code --list-extensions | tr '[:upper:]' '[:lower:]')
+  while read -r ext; do
+    [[ -z $ext || $ext == \#* ]] && continue
+    if ! grep -qx "$(echo "$ext" | tr '[:upper:]' '[:lower:]')" <<<"$installed"; then
+      code --install-extension "$ext" >/dev/null && ok "$ext" || warn "Couldn't install $ext"
     fi
-fi
-unset install
+  done <vscode/extensions.txt
+  ok "Extensions up to date"
+}
+
+step_macos() {
+  if ask "Apply the macOS defaults in macos/defaults.sh?"; then
+    bash macos/defaults.sh
+  fi
+  bash macos/security.sh
+
+  title "Software updates"
+  if ask "Install pending macOS updates now? (may restart)" n; then
+    sudo softwareupdate --install --all --agree-to-license
+  fi
+}
+
+# --- Main --------------------------------------------------------------------
+
+usage() {
+  sed -n '2,9s/^# \{0,1\}//p' "$0"
+  exit "${1:-0}"
+}
+
+selected=""
+while (($#)); do
+  case $1 in
+    -y | --yes) export DOTFILES_YES=1 ;;
+    -h | --help) usage ;;
+    -l | --list)
+      for step in $STEPS; do printf '  %-10s %s\n' "$step" "$(describe "$step")"; done
+      exit 0
+      ;;
+    -*) usage 1 ;;
+    *)
+      [[ " $STEPS " == *" $1 "* ]] || die "Unknown step '$1'. See --list."
+      selected="$selected $1"
+      ;;
+  esac
+  shift
+done
+
+[[ $(uname) == Darwin ]] || die "These dotfiles are for macOS"
+[[ $EUID -ne 0 ]] || die "Run as your user, not root"
+
+printf '%sdotfiles%s · macOS %s · %s\n' "$BOLD" "$RESET" "$(sw_vers -productVersion)" "$(uname -m)"
+sudo_keepalive
+
+# Homebrew must be on PATH for every step after it
+[[ -x $(brew_prefix)/bin/brew ]] && eval "$("$(brew_prefix)/bin/brew" shellenv)"
+
+for step in ${selected:-$STEPS}; do
+  title "$(describe "$step")"
+  "step_$step"
+done
+
+title "Done"
+info "Open a new terminal (or run: exec zsh -l) to load the new shell config."
+info "Log out and back in for keyboard and trackpad changes to take effect."
