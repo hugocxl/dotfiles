@@ -1,0 +1,8 @@
+# Linked to ~/.config/yazi/theme.toml.
+# Turn file icons off: they need a Nerd Font, which this setup doesn't install.
+[icon]
+globs = []
+dirs  = []
+files = []
+exts  = []
+conds = []

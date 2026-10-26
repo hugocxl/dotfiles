@@ -60,7 +60,6 @@ Nothing is deleted: every file it replaces is moved to
 | `~/.zshrc` | Replaced | Copy anything machine-specific (extra `PATH`s, gcloud, Java, tokens) into `~/.zshrc.local`. |
 | `~/.zprofile` | Replaced | Same as above. |
 | `~/.gitconfig` | Moved away; your name and email are carried over | Copy any custom settings you want to keep into `~/.config/git/config.local`. |
-| VS Code `settings.json` / `keybindings.json` | Replaced | If VS Code Settings Sync is on, it's fine; otherwise compare with `vscode/` first. |
 | `~/.ssh/config` | A `Host *` keychain block is added at the end if missing | Nothing. |
 
 Oh My Zsh isn't used any more but isn't removed either. Once you're happy, delete it
@@ -73,7 +72,7 @@ which mise replaces.
 cd ~/repos/dotfiles
 ./install.sh --list       # see the steps
 ./install.sh              # run everything
-./install.sh git vscode   # run only some steps, in the order given
+./install.sh git ssh      # run only some steps, in the order given
 ./install.sh --yes        # accept every default
 ./install.sh --help
 ```
@@ -85,12 +84,12 @@ running it again is safe.
 | --- | --- |
 | `xcode` | Installs the Xcode Command Line Tools, without the GUI prompt |
 | `homebrew` | Installs Homebrew, turns its analytics off, updates it |
-| `packages` | Installs everything in [`Brewfile`](Brewfile) with `brew bundle`. It tries to take over apps you installed by hand, so Homebrew keeps them updated |
-| `dotfiles` | Links `~/.zshrc`, `~/.zprofile` and `~/.config/mise/config.toml`; makes zsh your shell |
+| `packages` | Installs everything in [`Brewfile`](Brewfile) with `brew bundle`. It tries to take over apps you installed by hand, so Homebrew keeps them updated. Then downloads the Yab browser, which isn't on Homebrew, after checking its checksum and signature |
+| `dotfiles` | Links `~/.zshrc`, `~/.zprofile`, `~/.config/mise/config.toml` and `~/.config/yazi/theme.toml`; makes zsh your shell |
 | `git` | Links `~/.config/git/config` and `~/.config/git/ignore`, saves your name and email, logs into GitHub |
-| `ssh` | Creates `~/.ssh/id_ed25519`, stores its passphrase in the keychain, uploads it to GitHub |
-| `languages` | Installs Node LTS, pnpm and bun with mise; Rust stable with rustup |
-| `vscode` | Links settings and keybindings, installs any missing extension from `vscode/extensions.txt` |
+| `ssh` | Creates `~/.ssh/id_ed25519`, stores its passphrase in the keychain, sets git to sign commits with it, uploads it to GitHub for both login and signing |
+| `languages` | Installs Node LTS, pnpm and bun with mise |
+| `muxy` | Copies the Muxy settings from [`muxy/`](muxy) into place, but only files this Mac doesn't have yet |
 | `macos` | Applies [`macos/defaults.sh`](macos/defaults.sh) and [`macos/security.sh`](macos/security.sh), offers pending macOS updates |
 
 ## What it asks you
@@ -103,11 +102,12 @@ The Default column is the answer used with `--yes` or when you just press Enter.
 | `git` | Git name / email | Your current values | Skipped once `~/.config/git/config.local` has an email |
 | `git` | Log in to GitHub now? | Y | Opens the browser; uses SSH for git |
 | `ssh` | Create an SSH key? | Y | Only if `~/.ssh/id_ed25519` doesn't exist. `ssh-keygen` asks for a passphrase: use one, the keychain remembers it |
+| `ssh` | Sign your commits with this SSH key? | Y | Only asked until a signing key is set |
 | `ssh` | Add this key to your GitHub account? | Y | Only when logged into GitHub and the key isn't there yet |
 | `macos` | Apply the macOS defaults? | Y | Answer no to skip all of `defaults.sh` |
 | `macos` | Computer name | Current name | Also sets the network host name |
 | `macos` | Clear all apps pinned to the Dock? | N | Say yes on a new Mac for an empty Dock |
-| `macos` | Use Touch ID for sudo? | Y | Also works inside tmux |
+| `macos` | Use Touch ID for sudo? | Y | Also works inside Muxy |
 | `macos` | Turn on the firewall? | Y | Includes stealth mode |
 | `macos` | Require your password immediately after the screen locks? | Y | Asks your login password again. Skipped with `--yes` |
 | `macos` | Install pending macOS updates now? | N | Can restart the Mac. Run it last, or later |
@@ -121,24 +121,27 @@ A few things can't be scripted:
 3. **1Password**: sign in. If you want, turn on its SSH agent in Settings → Developer.
 4. **Raycast**: open it and set its hotkey to ⌘Space. The installer already freed
    that shortcut from Spotlight.
-5. **Docker Desktop**, **Google Drive**, **Spotify**, **Arc**: open each once to sign in
+5. **Docker Desktop**, **Google Drive**, **Spotify**: open each once to sign in
    and grant permissions.
-6. **FileVault**: if the installer warned it's off, turn it on in
+6. **Yab**: open it, then make it the default browser in
+   System Settings → Desktop & Dock → Default web browser. macOS doesn't let a script do this.
+7. **Muxy**: open it once. Its settings are already in place. If you use its
+   "open in editor" button, pick your editor in Muxy's settings.
+8. **FileVault**: if the installer warned it's off, turn it on in
    System Settings → Privacy & Security. Save the recovery key in 1Password.
-7. **VS Code**: sign into Settings Sync if you use it.
 
 ## Day to day
 
 | Command | What it does |
 | --- | --- |
-| `update` | Upgrades Homebrew packages, mise tools and Rust |
+| `update` | Upgrades Homebrew packages and mise tools |
 | `dotfiles` | `cd` into this repo |
 | `reload` | Restarts the shell after editing the config |
-| `zshconfig` | Opens `~/.zshrc` in VS Code |
+| `zshconfig` | Opens `~/.zshrc` in your editor (`$EDITOR`, nano by default) |
 | `git pull && ./install.sh` | Applies the latest version of the repo to this Mac |
 
 Because the config files are symlinks, editing `~/.zshrc`, `~/.config/git/config` or
-the VS Code settings edits the files in this repo. Commit them like any other change.
+`~/.config/mise/config.toml` edits the files in this repo. Commit them like any other change.
 
 ## Customizing
 
@@ -148,8 +151,12 @@ Edit [`Brewfile`](Brewfile), then run `./install.sh packages`.
 
 - Add an app: `cask "figma"`. Add a CLI tool: `brew "shellcheck"`. Search names with `brew search <name>`.
 - Removing a line doesn't uninstall anything. To see what's installed but not in
-  the Brewfile: `brew bundle cleanup --file=Brewfile`. To uninstall those:
-  add `--force` (check the list first).
+  the Brewfile: `brew bundle cleanup --file=Brewfile`.
+- **Careful with `brew bundle cleanup --force`**: it uninstalls everything in that
+  list, including apps you installed by hand and still use. Add what you want to
+  keep to the Brewfile first.
+- Taps other than Homebrew's own must be trusted, or Homebrew 7 refuses to install
+  from them. Add `trusted: true` to the line, as the Muxy line does.
 - Save everything currently installed to the Brewfile:
   `brew bundle dump --file=Brewfile --force`. This loses the comments and grouping.
 
@@ -163,6 +170,19 @@ mise use node@22        # pin a version in the current project
 mise use -g node@24     # change the global version (edits mise/config.toml)
 mise ls                 # what's installed
 ```
+
+### Muxy
+
+Muxy's settings are copied, not linked, because Muxy rewrites them while it runs.
+After changing settings in Muxy, save them back to the repo with:
+
+```sh
+cp ~/Library/Application\ Support/Muxy\ 2/{settings,terminal,server}.toml \
+   ~/Library/Application\ Support/Muxy\ 2/ghostty.conf muxy/
+```
+
+Then empty `hidden_worktrees` and `worktree_recent` in `muxy/settings.toml`
+(they list this Mac's projects) and commit.
 
 ### Shell
 
@@ -192,15 +212,6 @@ defaults read > /tmp/before.txt
 # change the setting in System Settings
 defaults read > /tmp/after.txt
 diff /tmp/before.txt /tmp/after.txt
-```
-
-### VS Code extensions
-
-`vscode/extensions.txt` has one extension ID per line; lines starting with `#` are
-ignored. Refresh it from what's installed with:
-
-```sh
-code --list-extensions > vscode/extensions.txt
 ```
 
 ## Undoing changes
@@ -235,11 +246,12 @@ code --list-extensions > vscode/extensions.txt
 ```
 bootstrap.sh        curl | bash entry point
 install.sh          step runner
-Brewfile            CLI tools, fonts and apps
+Brewfile            CLI tools, fonts and apps (Yab is installed by install.sh)
 zsh/                .zshrc and .zprofile
 git/                config and global ignore → ~/.config/git/
 mise/               global Node/pnpm/bun versions → ~/.config/mise/
-vscode/             settings, keybindings, extensions.txt
+muxy/               Muxy settings, copied into ~/Library/Application Support/Muxy 2/
+yazi/               yazi theme (icons off) → ~/.config/yazi/
 macos/              system defaults and security hardening
 lib/utils.sh        logging, prompts, symlink-with-backup
 ```

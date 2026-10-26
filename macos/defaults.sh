@@ -248,7 +248,7 @@ defaults write com.apple.dock wvous-br-modifier -int 0
 title "Apps"
 
 # Terminal: Secure Keyboard Entry, no line marks
-defaults write com.apple.terminal SecureKeyboardEntry -bool true
+defaults write com.apple.Terminal SecureKeyboardEntry -bool true
 defaults write com.apple.Terminal ShowLineMarks -int 0
 
 # Time Machine: don't offer new disks as backup volumes
@@ -288,7 +288,7 @@ sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate CriticalUpdate
 sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate ConfigDataInstall -bool true
 
 # Keep App Store apps up to date
-sudo defaults write /Library/Preferences/com.apple.commerce AutoUpdate -bool true
+sudo defaults write /Library/Preferences/com.apple.SoftwareUpdate AutomaticallyInstallAppUpdates -bool true
 
 ###############################################################################
 # Apply                                                                       #

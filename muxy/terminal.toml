@@ -1,0 +1,42 @@
+font_families = ["SF Mono"]
+font_size = 13.0
+cell_height = "0"
+macos_option_as_alt = "true"
+keybindings = [""]
+diagnostics = []
+
+[font]
+bold = []
+italic = []
+bold_italic = []
+features = []
+codepoints = []
+cell_width = "0"
+thicken = false
+thicken_strength = 255
+
+[options]
+cursor_opacity = 1.0
+cursor_thickness = "0"
+selection_clear_on_typing = false
+selection_clear_on_copy = false
+background_opacity_cells = false
+background_vibrancy = 0
+bold_is_bright = false
+mouse_reporting = true
+scroll_precision = 1.0
+scroll_discrete = 1.0
+scroll_on_keystroke = true
+scroll_on_output = false
+padding_x = [
+    2.0,
+    2.0,
+]
+padding_y = [
+    2.0,
+    2.0,
+]
+padding_balance = false
+padding_color = "extend"
+
+[options.palette]

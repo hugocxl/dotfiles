@@ -10,9 +10,19 @@ setopt EXTENDED_HISTORY HIST_IGNORE_ALL_DUPS HIST_IGNORE_SPACE HIST_REDUCE_BLANK
 # --- Options -----------------------------------------------------------------
 setopt AUTO_CD AUTO_PUSHD PUSHD_IGNORE_DUPS INTERACTIVE_COMMENTS NO_BEEP
 
+# Homebrew is normally set up in .zprofile, which only login shells read.
+# Cover shells started without it so plugins and tools still load.
+if [[ -z $HOMEBREW_PREFIX ]]; then
+  if [[ -x /opt/homebrew/bin/brew ]]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+  elif [[ -x /usr/local/bin/brew ]]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+  fi
+fi
+
 # --- Completion --------------------------------------------------------------
 if [[ -n $HOMEBREW_PREFIX ]]; then
-  fpath=("$HOMEBREW_PREFIX/share/zsh-completions" "$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
+  fpath=("$HOMEBREW_PREFIX/share/zsh/site-functions" $fpath)
 fi
 [[ -d $HOME/.zsh/completions ]] && fpath=("$HOME/.zsh/completions" $fpath)
 
@@ -36,20 +46,19 @@ fi
 # --- Tools -------------------------------------------------------------------
 has() { (( $+commands[$1] )); }
 
-has mise   && eval "$(mise activate zsh)"
-has fzf    && source <(fzf --zsh)
-has zoxide && eval "$(zoxide init zsh)"
+has mise && eval "$(mise activate zsh)"
 
+# Global packages from `pnpm add -g` and `bun add -g`
 export PNPM_HOME="$HOME/Library/pnpm"
-path=("$PNPM_HOME" $path)
+path=("$PNPM_HOME" "$HOME/.bun/bin" $path)
 
 # --- Aliases -----------------------------------------------------------------
-alias zshconfig="code ~/.zshrc"
+alias zshconfig='${EDITOR:-nano} ~/.zshrc'
 alias dotfiles="cd ${${:-$HOME/.zshrc}:A:h:h}"
 alias reload="exec zsh"
 
 # Keep everything up to date
-alias update="brew update && brew upgrade && mise upgrade && rustup update"
+alias update="brew update && brew upgrade && mise upgrade"
 
 if has eza; then
   alias ls="eza --group-directories-first"
@@ -85,8 +94,7 @@ alias pxt="px test"
 # --- Local overrides ---------------------------------------------------------
 [[ -f $HOME/.zshrc.local ]] && source "$HOME/.zshrc.local"
 
-# --- Plugins (syntax highlighting must load last) ----------------------------
+# --- Plugins -----------------------------------------------------------------
 if [[ -n $HOMEBREW_PREFIX ]]; then
   source "$HOMEBREW_PREFIX/share/zsh-autosuggestions/zsh-autosuggestions.zsh" 2>/dev/null
-  source "$HOMEBREW_PREFIX/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh" 2>/dev/null
 fi

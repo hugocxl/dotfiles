@@ -3,7 +3,7 @@
 # idempotent, so it's safe to run again after pulling changes.
 #
 #   ./install.sh               run every step
-#   ./install.sh git vscode    run only some steps
+#   ./install.sh git ssh       run only some steps
 #   ./install.sh --yes         accept every default, no questions
 #   ./install.sh --list        list the steps
 
@@ -11,18 +11,21 @@ set -euo pipefail
 cd "$(dirname "$0")"
 source lib/utils.sh
 
-STEPS="xcode homebrew packages dotfiles git ssh languages vscode macos"
+# Developer ID team that signs Yab (21st Labs Inc.)
+YAB_TEAM_ID=25UG4QYN9F
+
+STEPS="xcode homebrew packages dotfiles git ssh languages muxy macos"
 
 describe() {
   case $1 in
     xcode)     echo "Xcode Command Line Tools" ;;
     homebrew)  echo "Homebrew" ;;
-    packages)  echo "CLI tools and apps from the Brewfile" ;;
-    dotfiles)  echo "Link zsh and mise config into ~" ;;
+    packages)  echo "CLI tools and apps from the Brewfile, plus Yab" ;;
+    dotfiles)  echo "Link zsh, mise and yazi config into ~" ;;
     git)       echo "Git config, identity and GitHub login" ;;
     ssh)       echo "SSH key in the macOS keychain" ;;
-    languages) echo "Node, pnpm, bun (mise) and Rust" ;;
-    vscode)    echo "VS Code settings, keybindings and extensions" ;;
+    languages) echo "Node, pnpm and bun (mise)" ;;
+    muxy)      echo "Muxy settings" ;;
     macos)     echo "macOS defaults, security and software updates" ;;
   esac
 }
@@ -66,12 +69,40 @@ step_packages() {
   else
     warn "Some packages failed. Fix them, then run: ./install.sh packages"
   fi
+  install_yab || warn "Couldn't install Yab. Download it from https://yetanotherbrowser.com"
+}
+
+# Yab isn't on Homebrew. Install it from its update feed, checking the download's
+# checksum and signature; once installed it updates itself.
+install_yab() {
+  if [[ -d /Applications/yab.app ]]; then
+    ok "Yab"
+    return
+  fi
+  local feed url sha tmp app
+  feed=$(curl -fsSL https://yetanotherbrowser.com/appcast.json) || return 1
+  url=$(plutil -extract url raw -o - - <<<"$feed") || return 1
+  sha=$(plutil -extract sha256 raw -o - - <<<"$feed") || return 1
+  tmp=$(mktemp -d)
+  curl -fsSL "$url" -o "$tmp/yab.zip" || return 1
+  if [[ $(shasum -a 256 "$tmp/yab.zip" | cut -d' ' -f1) != "$sha" ]]; then
+    warn "Yab download doesn't match its checksum"
+    return 1
+  fi
+  ditto -xk "$tmp/yab.zip" "$tmp" || return 1
+  app="$tmp/yab.app"
+  codesign --verify --deep --strict "$app" || return 1
+  [[ $(codesign -dv "$app" 2>&1) == *"TeamIdentifier=$YAB_TEAM_ID"* ]] || return 1
+  ditto "$app" /Applications/yab.app || return 1
+  rm -rf "$tmp"
+  ok "Yab installed"
 }
 
 step_dotfiles() {
   link zsh/.zshrc "$HOME/.zshrc"
   link zsh/.zprofile "$HOME/.zprofile"
   link mise/config.toml "$HOME/.config/mise/config.toml"
+  link yazi/theme.toml "$HOME/.config/yazi/theme.toml"
 
   [[ $SHELL == */zsh ]] || chsh -s /bin/zsh
   if [[ -d $HOME/.oh-my-zsh ]]; then
@@ -103,7 +134,10 @@ step_git() {
   ok "Committing as $(git config user.name) <$(git config user.email)>"
 
   if has gh && ! gh auth status &>/dev/null && ask "Log in to GitHub now?"; then
-    gh auth login --git-protocol ssh --web
+    # The ssh step creates and uploads the key itself, so skip gh's own key prompt
+    # but ask for the scopes it needs.
+    gh auth login --git-protocol ssh --web --skip-ssh-key --scopes admin:public_key,admin:ssh_signing_key ||
+      warn "GitHub login didn't finish. Run it later with: ./install.sh git"
   fi
 }
 
@@ -124,42 +158,59 @@ step_ssh() {
   ssh-add --apple-use-keychain "$key" 2>/dev/null || true
   ok "SSH key: $key.pub"
 
-  if has gh && gh auth status &>/dev/null && ! gh ssh-key list 2>/dev/null | grep -q "$(cut -d' ' -f2 "$key.pub")"; then
-    if ask "Add this key to your GitHub account?"; then
-      gh ssh-key add "$key.pub" --title "$(scutil --get ComputerName)"
-    fi
+  # Sign commits and tags with the same key
+  local local_config="$HOME/.config/git/config.local"
+  if [[ -z $(git config --file "$local_config" user.signingkey 2>/dev/null || true) ]] &&
+    ask "Sign your commits with this SSH key?"; then
+    git config --file "$local_config" gpg.format ssh
+    git config --file "$local_config" user.signingkey "$key.pub"
+    git config --file "$local_config" commit.gpgsign true
+    git config --file "$local_config" tag.gpgsign true
+    ok "Commits will be signed"
+  fi
+
+  has gh && gh auth status &>/dev/null || return 0
+  # One line per key on GitHub, ending in its type: authentication or signing
+  local pub keys title
+  pub=$(cut -d' ' -f2 "$key.pub")
+  keys=$(gh ssh-key list 2>/dev/null | grep -F "$pub" || true)
+  title=$(scutil --get ComputerName)
+  if [[ $keys != *authentication* ]] && ask "Add this key to your GitHub account?"; then
+    gh ssh-key add "$key.pub" --title "$title" || warn "Couldn't add the key to GitHub"
+  fi
+  if [[ $(git config --file "$local_config" commit.gpgsign 2>/dev/null || true) == true ]] &&
+    [[ $keys != *signing* ]]; then
+    gh ssh-key add "$key.pub" --type signing --title "$title" ||
+      warn "Couldn't add the signing key. Run: gh auth refresh -h github.com -s admin:ssh_signing_key && ./install.sh ssh"
   fi
 }
 
 step_languages() {
   if has mise; then
-    mise install --yes
-    ok "$(mise ls --current | wc -l | tr -d " ") tools from mise/config.toml"
-  fi
-  if has rustup || [[ -x $(brew_prefix)/opt/rustup/bin/rustup ]]; then
-    PATH="$(brew_prefix)/opt/rustup/bin:$PATH" rustup default stable >/dev/null
-    ok "Rust stable"
+    if mise install --yes; then
+      ok "$(mise ls --current | wc -l | tr -d " ") tools from mise/config.toml"
+    else
+      warn "mise couldn't install everything. Run: ./install.sh languages"
+    fi
   fi
 }
 
-step_vscode() {
-  local user_dir="$HOME/Library/Application Support/Code/User"
-  link vscode/settings.json "$user_dir/settings.json"
-  link vscode/keybindings.json "$user_dir/keybindings.json"
-
-  if ! has code; then
-    warn "The 'code' command is missing; skipping extensions"
-    return
-  fi
-  local installed ext
-  installed=$(code --list-extensions | tr '[:upper:]' '[:lower:]')
-  while read -r ext; do
-    [[ -z $ext || $ext == \#* ]] && continue
-    if ! grep -qx "$(echo "$ext" | tr '[:upper:]' '[:lower:]')" <<<"$installed"; then
-      code --install-extension "$ext" >/dev/null && ok "$ext" || warn "Couldn't install $ext"
+# Muxy rewrites its settings files while running (window sizes, recent
+# projects), which would replace a symlink. So they're copied, and only when
+# missing: a new Mac gets this config, an existing one keeps its own.
+step_muxy() {
+  local dir="$HOME/Library/Application Support/Muxy 2" file
+  mkdir -p "$dir"
+  for file in settings.toml terminal.toml ghostty.conf server.toml; do
+    if [[ ! -e $dir/$file ]]; then
+      cp "muxy/$file" "$dir/$file"
+      ok "$file"
+    elif cmp -s "muxy/$file" "$dir/$file"; then
+      ok "$file"
+    else
+      info "$file: keeping this Mac's version (differs from muxy/$file)"
     fi
-  done <vscode/extensions.txt
-  ok "Extensions up to date"
+  done
 }
 
 step_macos() {
